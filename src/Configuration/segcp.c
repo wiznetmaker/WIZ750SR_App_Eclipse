@@ -690,17 +690,17 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 						else dev_config->network_info[0].keepalive_en = tmp_byte;
 						break;
 					case SEGCP_KI:
-						sscanf(param,"%ld", &tmp_long);
+						tmp_long = atol(param);
 						if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						else dev_config->network_info[0].keepalive_wait_time = (uint16_t) tmp_long;
 						break;
 					case SEGCP_KE:
-						sscanf(param,"%ld", &tmp_long);
+						tmp_long = atol(param);
 						if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						else dev_config->network_info[0].keepalive_retry_time = (uint16_t) tmp_long;
 						break;
 					case SEGCP_RI:
-						sscanf(param,"%ld", &tmp_long);
+						tmp_long = atol(param);
 						if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						else dev_config->network_info[0].reconnection = (uint16_t) tmp_long;
 						break;
@@ -803,17 +803,17 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 							}
 							else
 							{
-								sscanf(param, "%s", &dev_config->module_name);
+								sprintf(dev_config->module_name, "%s", param);
 							}
 						}
 						break;
 					case SEGCP_LP:
-						sscanf(param,"%ld", &tmp_long);
+						tmp_long = atol(param);
 						if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						else dev_config->network_info[0].local_port = (uint16_t)tmp_long;
 						break;
 					case SEGCP_RP:
-						sscanf(param,"%ld", &tmp_long);
+						tmp_long = atol(param);
 						if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;                  
 						else dev_config->network_info[0].remote_port = (uint16_t)tmp_long;
 						break;
@@ -835,7 +835,7 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 						
 						break;
 					case SEGCP_BR:
-						sscanf(param, "%d", &tmp_int);
+						tmp_int = atoi(param);
 						//if(param_len > 2 || tmp_int > baud_230400) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						if(param_len > 2 || tmp_int > baud_460800) ret |= SEGCP_RET_ERR_INVALIDPARAM; // ## 20180208 Added by Eric, Supports baudrate up to 460.8kbps 
 						else dev_config->serial_info[0].baud_rate = (uint8_t)tmp_int;
@@ -883,17 +883,17 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 						}
 						break;
 					case SEGCP_IT:
-						sscanf(param, "%ld", &tmp_long);
+						tmp_long = atol(param);
 						if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						else dev_config->network_info[0].inactivity = (uint16_t)tmp_long;
 						break;
 					case SEGCP_PT:
-						sscanf(param, "%ld", &tmp_long);
+						tmp_long = atol(param);
 						if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						else dev_config->network_info[0].packing_time = (uint16_t)tmp_long;
 						break;
 					case SEGCP_PS:
-						sscanf(param, "%d", &tmp_int);
+						tmp_int = atoi(param);
 						if(param_len > 3 || tmp_int > 0xFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						else dev_config->network_info[0].packing_size = (uint8_t)tmp_int;
 						break;
@@ -904,7 +904,7 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 						}
 						else
 						{
-							sscanf(param,"%x", &tmp_int);
+							tmp_int = atoi(param);
 							dev_config->network_info[0].packing_delimiter[0] = (uint8_t)tmp_int;
 							
 							if(dev_config->network_info[0].packing_delimiter[0] == 0x00) 
@@ -934,7 +934,7 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 						else
 						{
 							if(param[0] == SEGCP_NULL) dev_config->options.pw_connect[0] = 0;
-							else sscanf(param,"%s", &dev_config->options.pw_connect[0]);
+							else sprintf(dev_config->options.pw_connect[0], "%s", param);
 						}
 						break;
 					case SEGCP_SP:
@@ -945,11 +945,11 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 						else
 						{
 							if(param[0] == SEGCP_NULL) dev_config->options.pw_search[0] = 0;
-							else sscanf(param,"%s", &dev_config->options.pw_search);
+							else sprintf(dev_config->options.pw_search, "%s", param);
 						}
 						break;
 					case SEGCP_FW:
-						sscanf(param, "%ld", &tmp_long);
+						tmp_long = atol(param);
 #ifdef __USE_APPBACKUP_AREA__
 						if(tmp_long > (((uint32_t)DEVICE_FWUP_SIZE) & 0x0FFFF)) // 64KByte
 #else
@@ -1004,7 +1004,7 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 					case SEGCP_CC:
 					case SEGCP_CD:
 						io_num = (teSEGCPCMDNUM)cmdnum - SEGCP_CA;
-						sscanf(param, "%x", &tmp_int);
+						tmp_int = atoi(param);
 						
 						io_type = (uint8_t)(tmp_int >> 1);
 						io_dir = (uint8_t)(tmp_int & 0x01);
@@ -1033,7 +1033,7 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 // Status Pins
 					// SET status pin mode selector
 					case SEGCP_SC:
-						sscanf(param, "%x", &tmp_int);
+						tmp_int = atoi(param);
 						
 						tmp_byte = (uint8_t)((tmp_int & 0xF0) >> 4); // [0] PHY link / [1] DTR
 						tmp_int = (tmp_int & 0x0F); // [0] TCP connection / [1] DSR
@@ -1076,7 +1076,7 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
 						break;
 					
 					case SEGCP_FP: // Firmware update HTTP Server Port
-						sscanf(param, "%d", &tmp_int);
+						tmp_int = atoi(param);
 						if(tmp_int > 0xffff) ret |= SEGCP_RET_ERR_INVALIDPARAM;
 						else dev_config->firmware_update_extend.fwup_server_port = tmp_int;
 						break;

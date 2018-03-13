@@ -481,7 +481,7 @@ uint16_t get_firmware_from_server(uint8_t sock, uint8_t * server_ip, uint8_t * b
 				if(isHTTPHeaderParsed == 0) // HTTP header parsing
 				{
 					buf_ptr = buf;
-					mid((char *)buf, "HTTP/1.1 ", " ", (char *)tmp_buf);
+					_mid((char *)buf, "HTTP/1.1 ", " ", (char *)tmp_buf);
 					status_code = atoi((char *)tmp_buf);
 					if(status_code != STATUS_HTTP_OK)
 					{
@@ -495,7 +495,7 @@ uint16_t get_firmware_from_server(uint8_t sock, uint8_t * server_ip, uint8_t * b
 #ifdef _FWUP_DEBUG_
 					else printf(" > SEGCP:FW_UPDATE:HTTP/1.1 200 OK\r\n");
 #endif
-					mid((char *)buf, "Content-Length: ", "\r\n", (char *)tmp_buf);
+					_mid((char *)buf, "Content-Length: ", "\r\n", (char *)tmp_buf);
 					content_len = atol((char *)tmp_buf);
 					
 					// Updated firmware sizes need to be updated
