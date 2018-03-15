@@ -102,9 +102,6 @@ int main(void)
     /* W7500x MCU Initialization */
     W7500x_Init(); // includes UART2 initialize code for print out debugging messages
     
-    /* Set the TCP retranssmission retry count to WIZCHIP */
-	set_WZTOE_NetTimeout();
-
     /* W7500x WZTOE (Hardwired TCP/IP stack) Initialization */
     W7500x_WZTOE_Init();
     
@@ -122,8 +119,9 @@ int main(void)
     /* Set the MAC address to WIZCHIP */
     Mac_Conf();
     
+    /* Set the TCP retranssmission retry count to WIZCHIP */
+    set_WZTOE_NetTimeout();
     
-
     /* UART Initialization */
     S2E_UART_Configuration();
     
@@ -273,6 +271,10 @@ static void W7500x_WZTOE_Init(void)
     uint8_t i;
 #endif
     
+    
+    /* Software reset the WZTOE(Hardwired TCP/IP core) */
+    wizchip_sw_reset();
+    
     /* Set WZ_100US Register */
     setTIC100US((GetSystemClock()/10000));
 #ifdef _MAIN_DEBUG_
@@ -298,18 +300,18 @@ static void set_WZTOE_NetTimeout(void)
 {
     DevConfig *dev_config = get_DevConfig_pointer();
     
-    /* Structure for TCP timeout control: RTR, RCR */
-    wiz_NetTimeout * net_timeout;
+    /* Structure for TCP timeout control: RCR, RTR */
+    wiz_NetTimeout net_timeout;
     
     /* Set TCP Timeout: retry count / timeout val */
-    // W7500Retry count default: [8], Timeout val default: [2000]
-    net_timeout->retry_cnt = dev_config->options.tcp_rcr_val;
-    net_timeout->time_100us = 2500;
-    wizchip_settimeout(net_timeout);
+    // W7500x Retransmission retry count default: [8], Timeout val default: [2000]
+    net_timeout.retry_cnt = dev_config->options.tcp_rcr_val;
+    net_timeout.time_100us = 2500;
+    wizchip_settimeout(&net_timeout);
     
 #ifdef _MAIN_DEBUG_
-    wizchip_gettimeout(net_timeout); // TCP timeout settings
-    printf(" - Network Timeout Settings - RCR: %d, RTR: %dms\r\n", net_timeout->retry_cnt, net_timeout->time_100us);
+    wizchip_gettimeout(&net_timeout); // TCP timeout settings
+    printf(" - Network Timeout Settings - RCR: %d, RTR: %d\r\n", net_timeout.retry_cnt, net_timeout.time_100us);
 #endif
 }
 
