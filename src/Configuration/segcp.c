@@ -55,8 +55,8 @@ uint8_t flag_send_configtool_keepalive = SEGCP_DISABLE;
 extern uint8_t tmp_timeflag_for_debug;
 
 static uint32_t temp_interrupt;
-static void fw_update_start(void);
-static void fw_update_end(void);
+static void flash_update_start(void);
+static void flash_update_end(void);
 
 void do_segcp(void)
 {
@@ -90,11 +90,15 @@ void do_segcp(void)
     
         if(segcp_ret & SEGCP_RET_FACTORY)
         {
+            flash_update_start();
             device_set_factory_default();
+            flash_update_end();
         }
         else if(segcp_ret & SEGCP_RET_SAVE)
         {
+            flash_update_start();
             save_DevConfig_to_storage();
+            flash_update_end();
         }
         else if(segcp_ret & SEGCP_RET_ERASE_EEPROM)
         {
@@ -108,10 +112,7 @@ void do_segcp(void)
     
         if(segcp_ret & SEGCP_RET_FWUP)
         {
-            fw_update_start();
-                
-            /* Simple UART init for Debugging */
-            UART2_Configuration();
+            flash_update_start();
             
             /* DualTimer Re-Initialization */
             //Timer_Configuration();
@@ -162,7 +163,7 @@ void do_segcp(void)
                 // ## 20180208 Added by Eric, Force socket close when fw update fails occurred
                 close(SOCK_FWUPDATE);
 
-                fw_update_end();
+                flash_update_end();
                 
                 /* Simple UART init for Debugging */
                 UART2_Configuration();
@@ -194,14 +195,14 @@ uint8_t parse_SEGCP(uint8_t * pmsg, uint8_t * param)
     uint8_t** pcmd;
     uint8_t cmdnum = 0;
     uint8_t i;
-
+    
     *param = 0;
 
     for(pcmd = tbSEGCPCMD; *pcmd != 0; pcmd++)
     {
         if(!strncmp((char *)pmsg, *pcmd, strlen(*pcmd))) break;
     }
-    
+
     if(*pcmd == 0) 
     {
 #ifdef _SEGCP_DEBUG_   
@@ -283,9 +284,8 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
     uint8_t tmp_ip[4];
     
     uint8_t param[SEGCP_PARAM_MAX*2];
-    int *paramPtr;
     
-#ifdef _SEGCP_DEBUG_   
+#ifdef _SEGCP_DEBUG_
     printf("SEGCP_REQ : %s\r\n",segcp_req);
 #endif
     memset(trep, 0, sizeof(trep));
@@ -782,7 +782,7 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
                         break;
                     case SEGCP_RP:
                         tmp_long = atol(param);
-                        if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;                  
+                        if(tmp_long > 0xFFFF) ret |= SEGCP_RET_ERR_INVALIDPARAM;
                         else dev_config->network_info[0].remote_port = (uint16_t)tmp_long;
                         break;
                     case SEGCP_RH:
@@ -869,7 +869,7 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
                         }
                         else
                         {
-                        	str_to_hex(param, &tmp_byte);
+                            str_to_hex(param, &tmp_byte);
                             dev_config->network_info[0].packing_delimiter[0] = tmp_byte;
                             
                             if(dev_config->network_info[0].packing_delimiter[0] == 0x00) 
@@ -887,7 +887,6 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
                     case SEGCP_SS:
                         if(param_len != 6 || !is_hexstr(param) || !str_to_hex(param, dev_config->options.serial_trigger))
                         {
-                            //printf(">> SEGCP_SS = %.2X %.2X %.2X", dev_config->options.serial_trigger[0], dev_config->options.serial_trigger[1], dev_config->options.serial_trigger[2]);
                             ret |= SEGCP_RET_ERR_INVALIDPARAM;
                         }
                         break;
@@ -1428,10 +1427,16 @@ void segcp_timer_msec(void)
 
 
 /* System Core Clock Update for improved stability */
-static void fw_update_start(void)
+static void flash_update_start(void)
 {
     /* System Core Clock Update */
     SystemCoreClockUpdate_User(CLOCK_SOURCE_INTERNAL, PLL_SOURCE_8MHz, SYSTEM_CLOCK_8MHz);
+    
+    /* SysTick_Config */
+    SysTick_Config((GetSystemClock()/1000));
+    
+    /* Simple UART re-init by MCU clock update */
+    UART2_Configuration();
     
     // Backup Interrupt Set Pending Register
     temp_interrupt = (NVIC->ISPR[0]);
@@ -1439,11 +1444,17 @@ static void fw_update_start(void)
 }
 
 /* System Core Clock Update - Restore */
-static void fw_update_end(void)
+static void flash_update_end(void)
 {
     /* System Core Clock Update */
     SystemCoreClockUpdate_User(DEVICE_CLOCK_SELECT, DEVICE_PLL_SOURCE_CLOCK, DEVICE_TARGET_SYSTEM_CLOCK);
-
+    
+    /* SysTick_Config */
+    SysTick_Config((GetSystemClock()/1000));
+    
+    /* Simple UART re-init by MCU clock update */
+    UART2_Configuration();
+    
     // Restore Interrupt Set Pending Register
     (NVIC->ISPR[0]) = temp_interrupt;
 }
