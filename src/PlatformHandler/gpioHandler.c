@@ -524,6 +524,9 @@ void check_phylink_status(void)
 	
 	if(prev_link_status != link_status)
 	{
+		printf("PHY Link status: %s\r\n", link_status?"LINK OFF":"LINK ON");
+		printf("%s\r\n", STR_BAR);
+
 		if(link_status == 0x00)
 			set_connection_status_io(STATUS_PHYLINK_PIN, ON); 	// PHY Link up
 		else

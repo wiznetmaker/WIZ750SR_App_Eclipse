@@ -127,6 +127,11 @@ uint8_t get_phylink_in_pin(void)
 	return GPIO_ReadInputDataBit(PHYLINK_IN_PORT, PHYLINK_IN_PIN);
 }
 
+uint8_t get_phylink(void)
+{
+	return !link();
+}
+
 // Hardware mode switch pin, active low
 void init_hw_trig_pin(void)
 {
