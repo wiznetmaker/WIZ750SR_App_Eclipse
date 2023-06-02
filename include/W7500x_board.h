@@ -20,7 +20,6 @@
 #define DEVICE_BOARD_NAME	WIZ750SR
 //#define DEVICE_BOARD_NAME	WIZ750SR_1xx
 //#define DEVICE_BOARD_NAME	W7500_S2E
-//#define DEVICE_BOARD_NAME	WIZ752SR_12x
 
 #ifdef DEVICE_BOARD_NAME
 	#if (DEVICE_BOARD_NAME == WIZ750SR)
@@ -33,6 +32,7 @@
 		#define __USE_USERS_GPIO__
 		//#define __USE_DSR_DTR_DEFAULT__
         #define __USE_SAFE_SAVE__           // DevConfig Save verify function added
+        #define __USE_APPBOOT_TCP_SEARCH__
 		#define DEVICE_CLOCK_SELECT	         CLOCK_SOURCE_EXTERNAL
 		#define DEVICE_PLL_SOURCE_CLOCK      PLL_SOURCE_12MHz
 		#define DEVICE_TARGET_SYSTEM_CLOCK   SYSTEM_CLOCK_48MHz
@@ -46,6 +46,7 @@
 		#define __USE_USERS_GPIO__
 		//#define __USE_DSR_DTR_DEFAULT__
         #define __USE_SAFE_SAVE__           // DevConfig Save verify function added
+        #define __USE_APPBOOT_TCP_SEARCH__
 		#define DEVICE_CLOCK_SELECT	         CLOCK_SOURCE_EXTERNAL
 		#define DEVICE_PLL_SOURCE_CLOCK      PLL_SOURCE_12MHz
 		#define DEVICE_TARGET_SYSTEM_CLOCK   SYSTEM_CLOCK_48MHz
@@ -58,7 +59,9 @@
 		#define __USE_GPIO_HARDWARE_FLOWCONTROL__
 		#define __USE_USERS_GPIO__
 		#define __USE_DSR_DTR_DEFAULT__
-        #define __USE_SAFE_SAVE__           // DevConfig Save verify function added
+        #define __USE_SAFE_SAVE__             // DevConfig Save verify function added
+        #define __USE_APPBOOT_TCP_SEARCH__
+        #define __USE_TCPCONNECT_STATUS_PIN__ // When this option is enabled, the STATUS pin acts as a pin to indicate the TCP connection status of socket. (WIZ750SR-1xx series only)
 		#define DEVICE_CLOCK_SELECT	         CLOCK_SOURCE_EXTERNAL
 		#define DEVICE_PLL_SOURCE_CLOCK      PLL_SOURCE_12MHz
 		#define DEVICE_TARGET_SYSTEM_CLOCK   SYSTEM_CLOCK_48MHz
@@ -71,28 +74,11 @@
 		#define __USE_USERS_GPIO__
 		//#define __USE_DSR_DTR_DEFAULT__
         #define __USE_SAFE_SAVE__           // DevConfig Save verify function added
+        #define __USE_APPBOOT_TCP_SEARCH__
 		#define DEVICE_CLOCK_SELECT	         CLOCK_SOURCE_EXTERNAL
 		#define DEVICE_PLL_SOURCE_CLOCK      PLL_SOURCE_12MHz
 		#define DEVICE_TARGET_SYSTEM_CLOCK   SYSTEM_CLOCK_48MHz
 		#define DEVICE_ID_DEFAULT            "W7500-S2E"
-    #elif (DEVICE_BOARD_NAME == WIZ752SR_12x)
-		#define __W7500P__
-		//#define __USE_UART_IF_SELECTOR__
-		//#define __USE_EXT_EEPROM__
-		//#define __USE_BOOT_ENTRY__
-		#define __USE_APPBACKUP_AREA__
-		#define __USE_GPIO_HARDWARE_FLOWCONTROL__
-		#define __USE_USERS_GPIO__
-        //#define __USE_HW_TRIG_PIN__
-//        #define __USE_PHYLINK_CHECK_PIN__
-        //#define __USE_UART_DTR_DSR__
-        #define __USE_STATUS_PHYLINK_PIN__
-        #define __USE_STATUS_TCPCONNECT_PIN__
-		#define DEVICE_CLOCK_SELECT	            CLOCK_SOURCE_EXTERNAL
-		#define DEVICE_PLL_SOURCE_CLOCK         PLL_SOURCE_12MHz
-		#define DEVICE_TARGET_SYSTEM_CLOCK      SYSTEM_CLOCK_48MHz
-		#define DEVICE_ID_DEFAULT               "WIZ752SR-12x" // Device name
-        #define DEVICE_UART_CNT		            2 // Not used
 	#else
 		//#define __USE_UART_IF_SELECTOR__
 		//#define __USE_EXT_EEPROM__
@@ -100,6 +86,7 @@
 		#define __USE_BOOT_ENTRY__			// Application boot mode entry pin activated
 		#define __USE_GPIO_HARDWARE_FLOWCONTROL__
         #define __USE_SAFE_SAVE__           // DevConfig Save verify function added
+        #define __USE_APPBOOT_TCP_SEARCH__
 		#define DEVICE_CLOCK_SELECT	         CLOCK_SOURCE_EXTERNAL
 		#define DEVICE_PLL_SOURCE_CLOCK      PLL_SOURCE_8MHz
 		#define DEVICE_TARGET_SYSTEM_CLOCK   SYSTEM_CLOCK_48MHz
@@ -133,8 +120,7 @@
 
 /* PHY Link check  */
 #define PHYLINK_CHECK_CYCLE_MSEC	1000
-#define PHYLINK						0	// James. 2019-4-4
-#define TCPCONNECT					1	// James. 2019-4-4
+
 ////////////////////////////////
 // Pin definitions			  //
 ////////////////////////////////
@@ -150,7 +136,7 @@
 	#define STATUS_PHYLINK_PORT			GPIOA
 	#define STATUS_PHYLINK_PAD_AF		PAD_AF1
 
-	#define STATUS_TCPCONNECT_PIN		GPIO_Pin_9
+	#define STATUS_TCPCONNECT_PIN		GPIO_Pin_7//GPIO_Pin_9 19.9.5 irina
 	#define STATUS_TCPCONNECT_PORT		STATUS_PHYLINK_PORT
 	#define STATUS_TCPCONNECT_PAD_AF	STATUS_PHYLINK_PAD_AF
 
@@ -158,7 +144,7 @@
 	#define DTR_PORT					STATUS_PHYLINK_PORT
 	#define DTR_PAD_AF					STATUS_PHYLINK_PAD_AF
 
-	#define DSR_PIN						STATUS_TCPCONNECT_PIN
+	#define DSR_PIN						GPIO_Pin_9
 	#define DSR_PORT					STATUS_TCPCONNECT_PORT
 	#define DSR_PAD_AF					STATUS_TCPCONNECT_PAD_AF
 
@@ -173,45 +159,7 @@
 	#define STATUS_PIN			GPIO_Pin_7
 	#define STATUS_PORT			GPIOA
 	#define STATUS_PAD_AF		PAD_AF1
-#elif (DEVICE_BOARD_NAME == WIZ752SR_12x) // ##20161031 WIZ750SR-1xx
 
-//	#define PHYLINK_IN_PIN				GPIO_Pin_0
-//	#define PHYLINK_IN_PORT				GPIOA
-//	#define PHYLINK_IN_PAD_AF			PAD_AF1 // PAD Config - LED used 2nd Function
-
-	// Connection status indicator pins
-	// Direction: Output
-	#define STATUS_PHYLINK_PIN			GPIO_Pin_10
-	#define STATUS_PHYLINK_PORT			GPIOA
-	#define STATUS_PHYLINK_PAD_AF		PAD_AF1
-
-	#define STATUS_TCPCONNECT_0_PIN		GPIO_Pin_6
-	#define STATUS_TCPCONNECT_0_PORT	GPIOA
-	#define STATUS_TCPCONNECT_0_PAD_AF	PAD_AF1
-
-	#define STATUS_TCPCONNECT_1_PIN		GPIO_Pin_7
-	#define STATUS_TCPCONNECT_1_PORT	GPIOA
-	#define STATUS_TCPCONNECT_1_PAD_AF	PAD_AF1
-
-//	#define DTR_PIN						STATUS_PHYLINK_PIN
-//	#define DTR_PORT					STATUS_PHYLINK_PORT
-//	#define DTR_PAD_AF					STATUS_PHYLINK_PAD_AF
-//
-//	#define DSR_PIN						STATUS_TCPCONNECT_PIN
-//	#define DSR_PORT					STATUS_TCPCONNECT_PORT
-//	#define DSR_PAD_AF					STATUS_TCPCONNECT_PAD_AF
-
-	// HW_TRIG - Command mode switch enable pin
-	// Direction: Input (Shared pin with TCP connection status pin)
-//	#define HW_TRIG_PIN					GPIO_Pin_9
-//	#define HW_TRIG_PORT				GPIOA
-//	#define HW_TRIG_PAD_AF				PAD_AF1
-
-	// TCP Connection status indicator pin (WIZ750SR-10x series only)
-	// Direction: Output
-//	#define STATUS_PIN			GPIO_Pin_7
-//	#define STATUS_PORT			GPIOA
-//	#define STATUS_PAD_AF		PAD_AF1
 #else // Original pins
 	// PHY link status pin: Input (PHYLINK_IN_PIN -> STATUS_PHYLINK_PIN)
 	#define PHYLINK_IN_PIN				GPIO_Pin_9
@@ -352,6 +300,12 @@
 	#define LED2_GPIO_PORT		GPIOB
 	#define LED2_GPIO_PAD		PAD_PB
 	#define LED2_GPIO_PAD_AF	PAD_AF1
+	//add
+	#define LED3_PIN			GPIO_Pin_8
+	#define LED3_GPIO_PORT		GPIOC
+	#define LED3_GPIO_PAD		PAD_PC
+	
+	#define LED3_GPIO_PAD_AF	PAD_AF1
 
 #elif (DEVICE_BOARD_NAME == WIZ750SR_1xx) // ##20161031 WIZ750SR-1xx
 	
@@ -364,6 +318,11 @@
 	#define LED2_GPIO_PORT		GPIOC
 	#define LED2_GPIO_PAD		PAD_PC
 	#define LED2_GPIO_PAD_AF	PAD_AF1
+
+	#define LED3_PIN			GPIO_Pin_7
+	#define LED3_GPIO_PORT		GPIOA
+	#define LED3_GPIO_PAD		PAD_PA
+	#define LED3_GPIO_PAD_AF	PAD_AF1
 	
 #elif (DEVICE_BOARD_NAME == WIZwiki_W7500ECO)
 
@@ -376,6 +335,7 @@
 	#define LED2_GPIO_PORT		GPIOA
 	#define LED2_GPIO_PAD		PAD_PA
 	#define LED2_GPIO_PAD_AF	PAD_AF1
+	
 
 #else // WIZwiki-W7500 board
 
@@ -416,15 +376,23 @@
 	} Led_TypeDef;
 */
 #endif
-	
+#if ((DEVICE_BOARD_NAME == WIZ750SR) || (DEVICE_BOARD_NAME == W7500P_S2E) ||(DEVICE_BOARD_NAME == WIZ750SR_1xx))	
 	// LED
+	#define LEDn		3
+	typedef enum
+	{
+	  LED1 = 0,	// PHY link status
+	  LED2 = 1,	// blink
+	  LED3 = 2	// TCP connection status
+	} Led_TypeDef;
+#else
 	#define LEDn		2
 	typedef enum
 	{
 	  LED1 = 0,	// PHY link status
-	  LED2 = 1	// TCP connection status
+	  LED2 = 1	// blink
 	} Led_TypeDef;
-
+#endif
 	extern volatile uint16_t phylink_check_time_msec;
 	extern uint8_t flag_check_phylink;
 	extern uint8_t flag_hw_trig_enable;
@@ -438,8 +406,6 @@
 	void init_phylink_in_pin(void);
 	uint8_t get_phylink_in_pin(void);
 	
-	uint8_t get_phylink(void);
-
 	void init_uart_if_sel_pin(void);
 	uint8_t get_uart_if_sel_pin(void);
 	

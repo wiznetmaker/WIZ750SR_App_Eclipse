@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <string.h>
 #include "common.h"
 #include "W7500x_wztoe.h"
@@ -19,7 +18,7 @@ uint8_t flag_s2e_application_running = 0;
 
 uint8_t opmode = DEVICE_GW_MODE;
 static uint8_t mixed_state = MIXED_SERVER;
-static uint8_t sw_modeswitch_at_mode_on = SEG_DISABLE;
+uint8_t sw_modeswitch_at_mode_on = SEG_DISABLE;
 static uint16_t client_any_port = 0;
 
 // Timer Enable flags / Time
@@ -50,7 +49,7 @@ uint8_t flag_sent_keepalive = SEG_DISABLE;
 uint8_t flag_sent_first_keepalive = SEG_DISABLE;
 
 // static variables for function: check_modeswitch_trigger()
-static uint8_t triggercode_idx;
+uint8_t triggercode_idx;
 static uint8_t ch_tmp[3];
 
 // User's buffer / size idx
@@ -77,7 +76,7 @@ char * str_working[] = {"TCP_CLIENT_MODE", "TCP_SERVER_MODE", "TCP_MIXED_MODE", 
 
 uint8_t flag_process_dhcp_success = OFF;
 uint8_t flag_process_dns_success = OFF;
-
+uint8_t flag_process_ip_success = OFF;
 uint8_t isSocketOpen_TCPclient = OFF;
 
 // ## timeflag for debugging
@@ -106,6 +105,9 @@ void add_data_transfer_bytecount(teDATADIR dir, uint16_t len);
 
 // Serial debug messages for verifying data transfer
 uint16_t debugSerial_dataTransfer(uint8_t * buf, uint16_t size, teDEBUGTYPE type);
+#ifdef _TRIGGER_DEBUG_
+	uint8_t trigger_error_index = 0;
+#endif
 
 /* Public & Private functions ------------------------------------------------*/
 
@@ -142,19 +144,18 @@ void do_seg(uint8_t sock)
 	
 	// Firmware update: Do not run SEG process
 	if(fwupdate->fwup_flag == SEG_ENABLE) return;
-	
 	// Serial AT command mode enabled, initial settings
-	if((opmode == DEVICE_GW_MODE) && (sw_modeswitch_at_mode_on == SEG_ENABLE))
-	{
-		// Socket disconnect (TCP only) / close
-		process_socket_termination(sock);
+	// if((opmode == DEVICE_GW_MODE) && (sw_modeswitch_at_mode_on == SEG_ENABLE))
+	// {
+	// 	// Socket disconnect (TCP only) / close
+	// 	process_socket_termination(sock);
 		
-		// Mode switch
-		init_trigger_modeswitch(DEVICE_AT_MODE);
+	// 	// Mode switch
+	// 	init_trigger_modeswitch(DEVICE_AT_MODE);
 		
-		// Mode switch flag disabled
-		sw_modeswitch_at_mode_on = SEG_DISABLE;
-	}
+	// 	// Mode switch flag disabled
+	// 	sw_modeswitch_at_mode_on = SEG_DISABLE;	
+	// }
 	
 	if(opmode == DEVICE_GW_MODE) 
 	{
@@ -238,6 +239,9 @@ void proc_SEG_udp(uint8_t sock)
 	struct __serial_info *serial = (struct __serial_info *)get_DevConfig_pointer()->serial_info;
 	
 	uint8_t state = getSn_SR(sock);
+	uint8_t multicast_mac[6];
+	uint8_t flag=0;
+	
 	switch(state)
 	{
 		case SOCK_UDP:
@@ -252,7 +256,21 @@ void proc_SEG_udp(uint8_t sock)
 			u2e_size = 0;
 			e2u_size = 0;
 			
-			if(socket(sock, Sn_MR_UDP, net->local_port, 0) == sock)
+			// If remote ip is multicast address, enable the multicasting
+			if( net->remote_ip[0]>=224 && net->remote_ip[0] <=239){
+			  multicast_mac[0]=0x01;
+				multicast_mac[1]=0x00;
+				multicast_mac[2]=0x5e;
+				multicast_mac[3]=net->remote_ip[1] &0x7F;
+				multicast_mac[4]=net->remote_ip[2];
+				multicast_mac[5]=net->remote_ip[3];
+				setSn_DIPR(sock, net->remote_ip);
+				setSn_DPORT(sock, net->remote_port);
+				setSn_DHAR(sock, multicast_mac);
+				flag|=SF_MULTI_ENABLE;
+			}
+			flag|=SOCK_IO_NONBLOCK;
+			if(socket(sock, Sn_MR_UDP, net->local_port, flag) == sock)
 			{
 				set_device_status(ST_UDP);
 				
@@ -405,7 +423,7 @@ void proc_SEG_tcp_client(uint8_t sock)
 			if(socket(sock, Sn_MR_TCP, source_port, (SF_TCP_NODELAY | SF_IO_NONBLOCK)) == sock)
 			{
 				// Replace the command mode switch code GAP time (default: 500ms)
-				if((option->serial_command == SEG_ENABLE) && net->packing_time) modeswitch_gap_time = net->packing_time;
+				if(net->packing_time) modeswitch_gap_time = net->packing_time;
 				
 				// Enable the reconnection Timer
 				if((enable_reconnection_timer == SEG_DISABLE) && net->reconnection) enable_reconnection_timer = SEG_ENABLE;
@@ -482,6 +500,7 @@ void proc_SEG_tcp_server(uint8_t sock)
 			}
 			
 			// Serial to Ethernet process
+
 			if(BUFFER_USED_SIZE(data_rx) || u2e_size)	uart_to_ether(sock);
 			if(getSn_RX_RSR(sock) || e2u_size)	ether_to_uart(sock);
 			
@@ -554,10 +573,10 @@ void proc_SEG_tcp_server(uint8_t sock)
 			u2e_size = 0;
 			e2u_size = 0;
 
-			if(socket(sock, Sn_MR_TCP, net->local_port, SF_TCP_NODELAY) == sock)
+			if(socket(sock, Sn_MR_TCP, net->local_port, SF_TCP_NODELAY|SOCK_IO_NONBLOCK) == sock)
 			{
 				// Replace the command mode switch code GAP time (default: 500ms)
-				if((option->serial_command == SEG_ENABLE) && net->packing_time) modeswitch_gap_time = net->packing_time;
+				if(net->packing_time)	modeswitch_gap_time = net->packing_time;
 				
 				// TCP Server listen
 				listen(sock);
@@ -781,8 +800,8 @@ void proc_SEG_tcp_mixed(uint8_t sock)
 				if(socket(sock, Sn_MR_TCP, net->local_port, (SF_TCP_NODELAY | SF_IO_NONBLOCK)) == sock)
 				{
 					// Replace the command mode switch code GAP time (default: 500ms)
-					if((option->serial_command == SEG_ENABLE) && net->packing_time) modeswitch_gap_time = net->packing_time;
-					
+					if(net->packing_time) modeswitch_gap_time = net->packing_time;
+
 					// TCP Server listen
 					listen(sock);
 					
@@ -800,10 +819,10 @@ void proc_SEG_tcp_mixed(uint8_t sock)
 #ifdef _SEG_DEBUG_
 				printf(" > TCP CLIENT: any_port = %d\r\n", source_port);
 #endif		
-				if(socket(sock, Sn_MR_TCP, source_port, SF_TCP_NODELAY) == sock)
+				if(socket(sock, Sn_MR_TCP, source_port, SF_TCP_NODELAY|SOCK_IO_NONBLOCK) == sock)
 				{
 					// Replace the command mode switch code GAP time (default: 500ms)
-					if((option->serial_command == SEG_ENABLE) && net->packing_time) modeswitch_gap_time = net->packing_time;
+					if(net->packing_time) modeswitch_gap_time = net->packing_time;
 					
 					// Enable the reconnection Timer
 					if((enable_reconnection_timer == SEG_DISABLE) && net->reconnection) enable_reconnection_timer = SEG_ENABLE;
@@ -1092,13 +1111,11 @@ void ether_to_uart(uint8_t sock)
 		else
 		{
 			if((serial->serial_debug_en == SEG_DEBUG_E2S) || (serial->serial_debug_en == SEG_DEBUG_ALL))
-			{
 				debugSerial_dataTransfer(g_recv_buf, e2u_size, SEG_DEBUG_E2S);
-			}
-			
-			for(i = 0; i < e2u_size; i++) uart_putc(SEG_DATA_UART, g_recv_buf[i]);
-			
+				
+			for(i = 0; i < e2u_size; i++)	uart_putc(SEG_DATA_UART, g_recv_buf[i]);
 			add_data_transfer_bytecount(SEG_ETHER_TX, e2u_size);
+			
 			e2u_size = 0;
 		}
 	}
@@ -1205,6 +1222,7 @@ void init_trigger_modeswitch(uint8_t mode)
 			printf(" > SEG:GW Mode\r\n");
 			uart_puts(SEG_DATA_UART, (uint8_t *)"SEG:GW Mode\r\n", sizeof("SEG:GW Mode\r\n"));
 		}
+		
 	}
 	
 	u2e_size = 0;
@@ -1230,24 +1248,23 @@ uint8_t check_modeswitch_trigger(uint8_t ch)
 	
 	uint8_t modeswitch_failed = SEG_DISABLE;
 	uint8_t ret = 0;
-	
 	if(opmode != DEVICE_GW_MODE) 				return 0;
 	if(option->serial_command == SEG_DISABLE) 	return 0;
 	
 	switch(triggercode_idx)
 	{
 		case 0:
-			if((ch == option->serial_trigger[triggercode_idx]) && (modeswitch_time == modeswitch_gap_time)) // comparision succeed
+			if((ch == option->serial_trigger[triggercode_idx]) && (modeswitch_time >= modeswitch_gap_time)) // comparision succeed
 			{
 				ch_tmp[triggercode_idx] = ch;
 				triggercode_idx++;
 				enable_modeswitch_timer = SEG_ENABLE;
 			}
 			break;
-			
+					
 		case 1:
 		case 2:
-			if((ch == option->serial_trigger[triggercode_idx]) && (modeswitch_time < modeswitch_gap_time)) // comparision succeed
+			if((ch == option->serial_trigger[triggercode_idx]) && (modeswitch_time <= modeswitch_gap_time)) // comparision succeed
 			{
 				ch_tmp[triggercode_idx] = ch;
 				triggercode_idx++;
@@ -1255,14 +1272,27 @@ uint8_t check_modeswitch_trigger(uint8_t ch)
 			else // comparision failed: invalid trigger code
 			{
 				modeswitch_failed = SEG_ENABLE; 
+#ifdef _TRIGGER_DEBUG_
+				if(triggercode_idx == 1)
+					trigger_error_index = second_ch;
+				else if(triggercode_idx == 2)
+					trigger_error_index = third_ch;
+#endif
 			}
+			
 			break;
 		case 3:
 			if(modeswitch_time < modeswitch_gap_time) // comparision failed: end gap
 			{
 				modeswitch_failed = SEG_ENABLE;
+#ifdef _TRIGGER_DEBUG_
+				trigger_error_index = fourth_ch;
+#endif
 			}
+			triggercode_idx++;
 			break;
+		
+
 	}
 	
 	if(modeswitch_failed == SEG_ENABLE)
@@ -1272,7 +1302,6 @@ uint8_t check_modeswitch_trigger(uint8_t ch)
 	
 	modeswitch_time = 0; // reset the inter gap time count for each trigger code recognition (Allowable interval)
 	ret = triggercode_idx;
-	
 	return ret;
 }
 
@@ -1280,7 +1309,6 @@ uint8_t check_modeswitch_trigger(uint8_t ch)
 void restore_serial_data(uint8_t idx)
 {
 	uint8_t i;
-	
 	for(i = 0; i < idx; i++)
 	{
 		BUFFER_IN(data_rx) = ch_tmp[i];
@@ -1288,8 +1316,8 @@ void restore_serial_data(uint8_t idx)
 		ch_tmp[i] = 0x00;
 	}
 	
-	enable_modeswitch_timer = SEG_DISABLE;
-	triggercode_idx = 0;
+	 enable_modeswitch_timer = SEG_DISABLE;
+	 triggercode_idx = 0;
 }
 
 uint8_t check_serial_store_permitted(uint8_t ch)
@@ -1347,6 +1375,7 @@ void reset_SEG_timeflags(void)
 	
 	// Timer value clear
 	inactivity_time = 0;
+    
 	serial_input_time = 0;
 	keepalive_time = 0;
 	connection_auth_time = 0;
@@ -1357,7 +1386,7 @@ void init_time_delimiter_timer(void)
 	struct __network_info *netinfo = (struct __network_info *)&(get_DevConfig_pointer()->network_info);
 	struct __options *option = (struct __options *)&(get_DevConfig_pointer()->options);
 	
-	if((option->serial_command == SEG_ENABLE) && (opmode == DEVICE_GW_MODE))
+	if(opmode == DEVICE_GW_MODE)
 	{
 		if(netinfo->packing_time != 0)
 		{
@@ -1402,18 +1431,18 @@ uint8_t check_tcp_connect_exception(void)
 		if(serial->serial_debug_en) printf(" > SEG:CONNECTION FAILED - Duplicate IP address\r\n");
 		ret = ON;
 	}
-	else if((srcip[0] == 192) && (srcip[1] == 168)) // local IP address == Class C private IP
-	{
-		// Static IP address obtained
-		if((option->dhcp_use == SEG_DISABLE) && ((net->remote_ip[0] == 192) && (net->remote_ip[1] == 168)))
-		{
-			if(srcip[2] != net->remote_ip[2]) // Class C Private IP network mismatch
-			{
-				if(serial->serial_debug_en) printf(" > SEG:CONNECTION FAILED - Invalid IP address range (%d.%d.[%d].%d)\r\n", net->remote_ip[0], net->remote_ip[1], net->remote_ip[2], net->remote_ip[3]);
-				ret = ON; 
-			}
-		}
-	}
+	// else if((srcip[0] == 192) && (srcip[1] == 168)) // local IP address == Class C private IP
+	// {
+	// 	// Static IP address obtained
+	// 	if((option->dhcp_use == SEG_DISABLE) && ((net->remote_ip[0] == 192) && (net->remote_ip[1] == 168)))
+	// 	{
+	// 		if(srcip[2] != net->remote_ip[2]) // Class C Private IP network mismatch
+	// 		{
+	// 			if(serial->serial_debug_en) printf(" > SEG:CONNECTION FAILED - Invalid IP address range (%d.%d.[%d].%d)\r\n", net->remote_ip[0], net->remote_ip[1], net->remote_ip[2], net->remote_ip[3]);
+	// 			ret = ON; 
+	// 		}
+	// 	}
+	// }
 	
 	return ret;
 }
@@ -1561,16 +1590,32 @@ void seg_timer_msec(void)
 	}
 	
 	// Mode switch timer: Time count routine (msec) (GW mode <-> Serial command mode, for s/w mode switch trigger code)
-	if(modeswitch_time < modeswitch_gap_time) modeswitch_time++;
 	
-	if((enable_modeswitch_timer) && (modeswitch_time == modeswitch_gap_time))
+	if(modeswitch_time < modeswitch_gap_time) modeswitch_time++;
+	if((enable_modeswitch_timer) && (modeswitch_time >= modeswitch_gap_time))
+	
 	{
+		  
 		// result of command mode trigger code comparision
-		if(triggercode_idx == 3) 	sw_modeswitch_at_mode_on = SEG_ENABLE; 	// success
-		else						restore_serial_data(triggercode_idx);	// failed
-		
-		triggercode_idx = 0;
-		enable_modeswitch_timer = SEG_DISABLE;
+		if(triggercode_idx == 3){	
+			sw_modeswitch_at_mode_on = SEG_ENABLE; 	// success
+			triggercode_idx = 0;
+			enable_modeswitch_timer = SEG_DISABLE;
+		}
+//	    else if(triggercode_idx >= 4)
+	    else{
+			restore_serial_data(triggercode_idx);	// failed	
+#ifdef _TRIGGER_DEBUG_
+			trigger_error_index = timeout_occur;
+#endif
+		}
+
+		// triggercode_idx = 0;
+		// enable_modeswitch_timer = SEG_DISABLE;
+
+		if(netinfo->packing_time != 0)	modeswitch_gap_time = netinfo->packing_time;
+		else		modeswitch_gap_time = DEFAULT_MODESWITCH_INTER_GAP;
+
 	}
 	
 	// Serial data packing time delimiter timer

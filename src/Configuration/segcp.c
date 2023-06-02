@@ -76,9 +76,24 @@ void do_segcp(void)
             if(dev_config->serial_info[0].serial_debug_en) printf(" > SEGCP:ERROR:%04X\r\n", segcp_ret);
         }
     }
+    // else
+    // {
+    //     segcp_ret = proc_SEGCP_uart(gSEGCPREP);
+    //     if(segcp_ret !=0)
+    //         printf("segcp_ret = %x\r\n",segcp_ret);
+    // }
     
-    segcp_ret |= proc_SEGCP_udp(gSEGCPREQ, gSEGCPREP);
-    segcp_ret |= proc_SEGCP_tcp(gSEGCPREQ, gSEGCPREP);
+    segcp_ret |= proc_SEGCP_udp(gSEGCPREQ, gSEGCPREP);  //while DHCP operate, device search as possibility.
+    if(dev_config->options.dhcp_use){
+        if(flag_process_dhcp_success == ON){
+            segcp_ret |= proc_SEGCP_tcp(gSEGCPREQ, gSEGCPREP);
+        }
+    }
+    else
+    {
+        segcp_ret |= proc_SEGCP_tcp(gSEGCPREQ, gSEGCPREP);
+    
+    }
     
     if(segcp_ret && ((segcp_ret & SEGCP_RET_ERR) != SEGCP_RET_ERR)) // Command parsing success
     {
@@ -312,14 +327,23 @@ uint16_t proc_SEGCP(uint8_t* segcp_req, uint8_t* segcp_rep)
                                             dev_config->network_info_common.mac[3], dev_config->network_info_common.mac[4], dev_config->network_info_common.mac[5]);
                         break;
                     case SEGCP_VR: 
-                        if(strcmp(STR_VERSION_STATUS, "Develop") == 0)
+                        if(strcmp(STR_VERSION_STATUS, "Stable") == 0)
+                        {
+#ifndef __USE_APPBACKUP_AREA__
+                            sprintf(trep,"%d.%d.%d", dev_config->fw_ver[0], dev_config->fw_ver[1], dev_config->fw_ver[2]); // Standard stable version
+#else
+                            sprintf(trep,"%d.%d.%dA", dev_config->fw_ver[0], dev_config->fw_ver[1], dev_config->fw_ver[2]); // Stable version for support users prior to v1.2.0
+#endif
+                        }
+                        else if(strcmp(STR_VERSION_STATUS, "Develop") == 0)
                         {
                             // Develop version 
                             sprintf(trep,"%d.%d.%ddev", dev_config->fw_ver[0], dev_config->fw_ver[1], dev_config->fw_ver[2]);
                         }
                         else
                         {
-                            sprintf(trep,"%d.%d.%d", dev_config->fw_ver[0], dev_config->fw_ver[1], dev_config->fw_ver[2]);
+                            // Custom version 
+                            sprintf(trep,"%d.%d.%d%s", dev_config->fw_ver[0], dev_config->fw_ver[1], dev_config->fw_ver[2], STR_VERSION_STATUS);
                         }
                         break;
                     case SEGCP_MN: sprintf(trep,"%s", dev_config->module_name);
@@ -1221,9 +1245,9 @@ uint16_t proc_SEGCP_udp(uint8_t* segcp_req, uint8_t* segcp_rep)
             }
             break;
         case SOCK_CLOSED:
-            if(socket(SEGCP_UDP_SOCK, Sn_MR_UDP, DEVICE_SEGCP_PORT, 0x00) == SEGCP_UDP_SOCK)
+            if(socket(SEGCP_UDP_SOCK, Sn_MR_UDP, DEVICE_SEGCP_PORT, SOCK_IO_NONBLOCK) == SEGCP_UDP_SOCK) //191213 irina  add SOCK_IO_NONBLOCK
             {
-                ;//if(dev_config->serial_info[0].serial_debug_en) printf(" > SEGCP:UDP:STARTED\r\n");
+                if(dev_config->serial_info[0].serial_debug_en) printf(" > SEGCP:UDP:STARTED\r\n");
             }
             break;
     }
@@ -1323,7 +1347,7 @@ uint16_t proc_SEGCP_tcp(uint8_t* segcp_req, uint8_t* segcp_rep)
         case SOCK_FIN_WAIT:
             close(SEGCP_TCP_SOCK);
             
-            if(socket(SEGCP_TCP_SOCK, Sn_MR_TCP, DEVICE_SEGCP_PORT, SF_TCP_NODELAY) == SEGCP_TCP_SOCK)
+            if(socket(SEGCP_TCP_SOCK, Sn_MR_TCP, DEVICE_SEGCP_PORT, SF_TCP_NODELAY|SOCK_IO_NONBLOCK) == SEGCP_TCP_SOCK)
             {
                 //if(dev_config->serial_info[0].serial_debug_en) printf(" > SEGCP:TCP:STARTED\r\n");
                 

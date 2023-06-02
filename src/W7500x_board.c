@@ -18,12 +18,17 @@ extern void delay(__IO uint32_t nCount);
 
 static void PHY_Init(void);
 //static void delay_ms(uint32_t ms);
-
-GPIO_TypeDef* LED_PORT[LEDn] = {LED1_GPIO_PORT, LED2_GPIO_PORT};
-const uint16_t LED_PIN[LEDn] = {LED1_PIN, LED2_PIN};
-PAD_Type LED_PAD[LEDn] = {LED1_GPIO_PAD, LED2_GPIO_PAD};
-PAD_AF_TypeDef LED_PAD_AF[LEDn] = {LED1_GPIO_PAD_AF, LED2_GPIO_PAD_AF};
-
+#if (LEDn == 2)
+  GPIO_TypeDef* LED_PORT[LEDn] = {LED1_GPIO_PORT, LED2_GPIO_PORT};
+  const uint16_t LED_PIN[LEDn] = {LED1_PIN, LED2_PIN};
+  PAD_Type LED_PAD[LEDn] = {LED1_GPIO_PAD, LED2_GPIO_PAD};
+  PAD_AF_TypeDef LED_PAD_AF[LEDn] = {LED1_GPIO_PAD_AF, LED2_GPIO_PAD_AF};
+#else
+  GPIO_TypeDef* LED_PORT[LEDn] = {LED1_GPIO_PORT, LED2_GPIO_PORT, LED3_GPIO_PORT};
+  const uint16_t LED_PIN[LEDn] = {LED1_PIN, LED2_PIN, LED3_PIN};
+  PAD_Type LED_PAD[LEDn] = {LED1_GPIO_PAD, LED2_GPIO_PAD, LED3_GPIO_PAD};
+  PAD_AF_TypeDef LED_PAD_AF[LEDn] = {LED1_GPIO_PAD_AF, LED2_GPIO_PAD_AF, LED3_GPIO_PAD_AF};
+#endif
 volatile uint16_t phylink_check_time_msec = 0;
 uint8_t flag_check_phylink = 0;
 uint8_t flag_hw_trig_enable = 0;
@@ -52,8 +57,12 @@ void W7500x_Board_Init(void)
 #endif
 	// STATUS #1 : PHY link status (LED1)
 	// STATUS #2 : TCP connection status (LED2)
+  // STATUS #3 : Blink
 	LED_Init(LED1);
 	LED_Init(LED2);
+//#if (DEVICE_BOARD_NAME == WIZ750SR_1xx)
+  LED_Init(LED3);
+//#endif
 }
 
 void Supervisory_IC_Init(void)
@@ -64,16 +73,14 @@ void Supervisory_IC_Init(void)
 
 static void PHY_Init(void)
 {
-	set_phylink_time_check(1); // start PHY link time checker
-	
+    set_phylink_time_check(1); // start PHY link time checker
+    
 #ifdef __DEF_USED_IC101AG__ // For using W7500 + (IC+101AG Phy)
-	*(volatile uint32_t *)(0x41003068) = 0x64; //TXD0 - set PAD strengh and pull-up
-	*(volatile uint32_t *)(0x4100306C) = 0x64; //TXD1 - set PAD strengh and pull-up
-	*(volatile uint32_t *)(0x41003070) = 0x64; //TXD2 - set PAD strengh and pull-up
-	*(volatile uint32_t *)(0x41003074) = 0x64; //TXD3 - set PAD strengh and pull-up
-	*(volatile uint32_t *)(0x41003050) = 0x64; //TXE  - set PAD strengh and pull-up
-	
-	//printf("\r\n[MCU: W7500]\r\n");
+    *(volatile uint32_t *)(0x41003068) = 0x64; //TXD0 - set PAD strengh and pull-up
+    *(volatile uint32_t *)(0x4100306C) = 0x64; //TXD1 - set PAD strengh and pull-up
+    *(volatile uint32_t *)(0x41003070) = 0x64; //TXD2 - set PAD strengh and pull-up
+    *(volatile uint32_t *)(0x41003074) = 0x64; //TXD3 - set PAD strengh and pull-up
+    *(volatile uint32_t *)(0x41003050) = 0x64; //TXE  - set PAD strengh and pull-up
 #endif
 
 #ifdef __W7500P__ // W7500P
@@ -83,34 +90,35 @@ static void PHY_Init(void)
     *(volatile uint32_t *)(0x41003054) = 0x61; // COL  - set pull down (PB_05)
     *(volatile uint32_t *)(0x41002058) = 0x01; // PB 06 AFC
     *(volatile uint32_t *)(0x41003058) = 0x61; // DUP  - set pull down (PB_06)
-
+    
     // PHY reset pin pull-up
     *(volatile uint32_t *)(0x410020D8) = 0x01; // PD 06 AFC[00 : zero / 01 : PD06]
     *(volatile uint32_t *)(0x410030D8) = 0x02; // PD 06 PADCON
     *(volatile uint32_t *)(0x45000004) = 0x40; // GPIOD DATAOUT [PD06 output 1]
-    *(volatile uint32_t *)(0x45000010) = 0x40; // GPIOD OUTENSET
+    *(volatile uint32_t *)(0x45000010) = 0x40; // GPIOD OUTENSET    
 #endif
+
 
 #ifdef __DEF_USED_MDIO__ 
-	/* mdio Init */
-	mdio_init(GPIOB, W7500x_MDC, W7500x_MDIO);
-	mdio_write(GPIOB, PHYREG_CONTROL, CNTL_RESET); // PHY Reset
-	
-	#ifdef __W7500P__ // W7500P
-		//set_link(FullDuplex10);
-		//set_link(HalfDuplex10);
-		//set_link(FullDuplex100);
-		//set_link(HalfDuplex100);
-		//set_link(AUTONEGO);
-	#endif
-	
-	// ## for debugging
-	//printf("\r\nPHYADDR = %.3x, PHYREGADDR = %x, VAL = 0x%.4x\r\n", PHY_ADDR, 0, mdio_read(GPIOB, 0)); // [RW] Control, default: 0x3100 / 0011 0001 0000 0000b
-	//printf("PHYADDR = %.3x, PHYREGADDR = %x, VAL = 0x%.4x\r\n", PHY_ADDR, 1, mdio_read(GPIOB, 1)); // [RO] Status,  default: 0x786d / 0111 1000 0110 1101b (link up)
-	//printf("PHYADDR = %.3x, PHYREGADDR = %x, VAL = 0x%.4x\r\n", PHY_ADDR, 2, mdio_read(GPIOB, 2)); // [RO] OUI,     default: 0x001c
+    /* mdio Init */
+    mdio_init(GPIOB, W7500x_MDC, W7500x_MDIO);
+    mdio_write(GPIOB, PHYREG_CONTROL, CNTL_RESET); // PHY Reset
+    
+    #ifdef __W7500P__ // W7500P
+        //set_link(FullDuplex10);
+        //set_link(HalfDuplex10);
+        //set_link(FullDuplex100);
+        //set_link(HalfDuplex100);
+        //set_link(AUTONEGO);
+    #endif
+    
+    // ## for debugging
+    //printf("\r\nPHYADDR = %.3x, PHYREGADDR = %x, VAL = 0x%.4x\r\n", PHY_ADDR, 0, mdio_read(GPIOB, 0)); // [RW] Control, default: 0x3100 / 0011 0001 0000 0000b
+    //printf("PHYADDR = %.3x, PHYREGADDR = %x, VAL = 0x%.4x\r\n", PHY_ADDR, 1, mdio_read(GPIOB, 1)); // [RO] Status,  default: 0x786d / 0111 1000 0110 1101b (link up)
+    //printf("PHYADDR = %.3x, PHYREGADDR = %x, VAL = 0x%.4x\r\n", PHY_ADDR, 2, mdio_read(GPIOB, 2)); // [RO] OUI,     default: 0x001c
 #endif
 
-	set_phylink_time_check(0); // start PHY link time checker
+    set_phylink_time_check(0); // start PHY link time checker
 }
 
 
@@ -125,11 +133,6 @@ uint8_t get_phylink_in_pin(void)
 {
 	// PHYlink input; Active low
 	return GPIO_ReadInputDataBit(PHYLINK_IN_PORT, PHYLINK_IN_PIN);
-}
-
-uint8_t get_phylink(void)
-{
-	return !link();
 }
 
 // Hardware mode switch pin, active low

@@ -1,13 +1,20 @@
 /**
   ******************************************************************************
   * @file    W7500x Serial to Ethernet Project - WIZ750SR App
-  * @author  Eric Jung, Team CS
-  * @version v1.2.2
-  * @date    Apr-2018
+  * @author  Irina Kim, Team network
+  * @version v1.2.8
+  * @date    Dec-2019
   * @brief   Main program body
   ******************************************************************************
   * @attention
   * @par Revision history
+  *    <2019/12/03> v1.2.8 Bugfix and Improvements by irina
+  *    <2019/11/22> v1.2.7 Bugfix and Improvements by irina
+  *    <2019/10/11> v1.2.6 Bugfix and Improvements by irina
+  *						  Modified Packing time
+  *    <2018/09/19> v1.2.5 Bugfix and Improvements by Becky	
+  *    <2018/06/22> v1.2.4 Bugfix by Eric Jung
+  *    <2018/04/27> v1.2.3 Bugfix and Improvements by Eric Jung
   *    <2018/04/12> v1.2.2 Bugfix by Eric Jung
   *    <2018/04/11> v1.2.2 Bugfix and Improvements by Eric Jung(Pre-released Ver.)
   *    <2018/03/26> v1.2.1 Bugfix by Eric Jung
@@ -72,6 +79,7 @@ static void W7500x_WZTOE_Init(void);
 static void set_WZTOE_NetTimeout(void);
 int8_t process_dhcp(void);
 int8_t process_dns(void);
+void Dev_Mode_Check(uint8_t sock);
 
 // Debug messages
 void display_Dev_Info_header(void);
@@ -84,7 +92,16 @@ void TimingDelay_Decrement(void);
 
 /* Private variables ---------------------------------------------------------*/
 static __IO uint32_t TimingDelay;
+extern uint8_t sw_modeswitch_at_mode_on;
+extern uint8_t enable_modeswitch_timer;
+extern uint8_t triggercode_idx;
+extern uint16_t modeswitch_time;
+extern uint16_t modeswitch_gap_time;
+#ifdef _TRIGGER_DEBUG_
+extern uint8_t trigger_error_index;
 
+uint8_t prev_triggercode_idx = 0;
+#endif
 /* Public variables ---------------------------------------------------------*/
 // Shared buffer declaration
 uint8_t g_send_buf[DATA_BUF_SIZE];
@@ -98,6 +115,7 @@ uint8_t g_recv_buf[DATA_BUF_SIZE];
 int main(void)
 {
     DevConfig *dev_config = get_DevConfig_pointer();
+    wiz_NetInfo gWIZNETINFO;
     
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     // W7500x Hardware Initialize
@@ -111,7 +129,7 @@ int main(void)
     
     /* W7500x Board Initialization */
     W7500x_Board_Init();
-    
+     
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     // W7500x Application: Initialize
     ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +137,9 @@ int main(void)
     /* Load the Configuration data */
     load_DevConfig_from_storage();
     dev_config->network_info[0].state = ST_OPEN;
-    
+
+	if(dev_config->network_info[0].packing_time != 0)	modeswitch_gap_time = dev_config->network_info[0].packing_time;
+
     /* Set the MAC address to WIZCHIP */
     Mac_Conf();
     
@@ -129,20 +149,15 @@ int main(void)
     /* UART Initialization */
     S2E_UART_Configuration();
     
-    /* GPIO Initialization*/
-    IO_Configuration();
-    
     if(dev_config->serial_info[0].serial_debug_en)
     {
         // Debug UART: Device information print out
         display_Dev_Info_header();
         display_Dev_Info_main();
     }
+    Net_Conf();
 
-	while(get_phylink());
-    printf("%s\r\n", STR_BAR);
-	printf("PHY Link status: %s\r\n", get_phylink()?"LINK OFF":"LINK ON");
-	printf("%s\r\n", STR_BAR);    ////////////////////////////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
     // W7500x Application: DHCP client / DNS client handler
     ////////////////////////////////////////////////////////////////////////////////////////////////////
     
@@ -153,17 +168,25 @@ int main(void)
         if(process_dhcp() == DHCP_IP_LEASED) // DHCP success
         {
             flag_process_dhcp_success = ON;
+            flag_process_ip_success = ON;
         }
-        else // DHCP failed
+        else
         {
-            Net_Conf(); // Set default static IP settings
-        }
+           get_DevConfig_value(gWIZNETINFO.mac, dev_config->network_info_common.mac, sizeof(gWIZNETINFO.mac[0]) * 6);
+	       set_DevConfig_value(gWIZNETINFO.ip, dev_config->network_info_common.local_ip, sizeof(gWIZNETINFO.ip));
+	       set_DevConfig_value(gWIZNETINFO.gw, dev_config->network_info_common.gateway, sizeof(gWIZNETINFO.gw));
+	       set_DevConfig_value(gWIZNETINFO.sn, dev_config->network_info_common.subnet, sizeof(gWIZNETINFO.sn));
+           set_DevConfig_value(gWIZNETINFO.dns, dev_config->options.dns_server_ip, sizeof(gWIZNETINFO.dns));
+           ctlnetwork(CN_SET_NETINFO, (void*) &gWIZNETINFO); 
+        }   
+        
     }
     else
     {
-        Net_Conf(); // Set default static IP settings
+        flag_process_ip_success = ON;
     }
     
+  
     // Debug UART: Network information print out (includes DHCP IP allocation result)
     if(dev_config->serial_info[0].serial_debug_en)
     {
@@ -202,12 +225,31 @@ int main(void)
         init_trigger_modeswitch(DEVICE_AT_MODE);
         flag_hw_trig_enable = 0;
     }
+    
+    /* GPIO Initialization*/
+    IO_Configuration();
 
     while(1) // main loop
     {
         do_segcp();
-        do_seg(SOCK_DATA);
         
+        Dev_Mode_Check(SOCK_DATA); // while DHCP operate, Device mode change(AT mode <-> GW mode) as possibility. This took it out in do_seg funcion.
+        if(flag_process_ip_success)
+            do_seg(SOCK_DATA);
+#ifdef _TRIGGER_DEBUG_
+            if(prev_triggercode_idx!=triggercode_idx){
+            prev_triggercode_idx=triggercode_idx;
+
+            if(trigger_error_index != 0)
+            {
+                if(trigger_error_index == timeout_occur)
+                    printf("timeout occurred\r\n");
+                else
+                    printf("error in %d th char\r\n", trigger_error_index + 1);
+                trigger_error_index = 0;
+            }
+        }
+#endif        
         if(dev_config->options.dhcp_use) DHCP_run(); // DHCP client handler for IP renewal
         
         // ## debugging: Data echoback
@@ -244,7 +286,7 @@ static void W7500x_Init(void)
     
     /* Set System init */
     SystemInit_User(DEVICE_CLOCK_SELECT, DEVICE_PLL_SOURCE_CLOCK, DEVICE_TARGET_SYSTEM_CLOCK);
-
+    
     /* DualTimer Initialization */
     Timer_Configuration();
     
@@ -253,7 +295,7 @@ static void W7500x_Init(void)
     
     /* SysTick_Config */
     SysTick_Config((GetSystemClock()/1000));
-    
+    delay(10); // delay for system clock stabilization
 
 #ifdef _MAIN_DEBUG_
     printf("\r\n >> W7500x MCU Clock Settings ===============\r\n"); 
@@ -330,6 +372,7 @@ int8_t process_dhcp(void)
 {
     uint8_t ret = 0;
     uint8_t dhcp_retry = 0;
+    struct __network_info *net = (struct __network_info *)get_DevConfig_pointer()->network_info;
 
 #ifdef _MAIN_DEBUG_
     printf(" - DHCP Client running\r\n");
@@ -368,9 +411,24 @@ int8_t process_dhcp(void)
         }
 
         do_segcp(); // Process the requests of configuration tool during the DHCP client run.
+        Dev_Mode_Check(SOCK_DATA);
+#ifdef _TRIGGER_DEBUG_
+        if(prev_triggercode_idx!=triggercode_idx){
+            prev_triggercode_idx=triggercode_idx;
+
+            if(trigger_error_index != 0)
+            {
+                if(trigger_error_index == timeout_occur)
+                    printf("timeout occurred\r\n");
+                else
+                    printf("error in %d th char\r\n", trigger_error_index + 1);
+                trigger_error_index = 0;
+            }
+        }
+#endif
     }
-    
-    set_device_status(ST_OPEN);
+    if(net->state !=(teDEVSTATUS)ST_ATMODE)
+        set_device_status(ST_OPEN);
     
     return ret;
 }
@@ -509,7 +567,7 @@ void display_Dev_Info_main(void)
             if(dev_config->network_info[0].packing_delimiter_length == 1) printf("[%.2X] (hex only)\r\n", dev_config->network_info[0].packing_delimiter[0]);
             else printf("%s\r\n", STR_DISABLED);
         
-        printf(" - Serial command mode swtich code:\r\n");
+        printf(" - Serial command mode switch code:\r\n");
         printf("\t- %s\r\n", (dev_config->options.serial_command == 1)?STR_ENABLED:STR_DISABLED);
         printf("\t- [%.2X][%.2X][%.2X] (Hex only)\r\n", dev_config->options.serial_trigger[0], dev_config->options.serial_trigger[1], dev_config->options.serial_trigger[2]);
     
@@ -530,8 +588,20 @@ void display_Dev_Info_main(void)
     
     printf("%s\r\n", STR_BAR);
 }
-
-
+void Dev_Mode_Check(uint8_t sock)
+{
+    if((opmode == DEVICE_GW_MODE) && (sw_modeswitch_at_mode_on == SEG_ENABLE))
+	{
+		// Socket disconnect (TCP only) / close
+		process_socket_termination(sock);
+		
+		// Mode switch
+		init_trigger_modeswitch(DEVICE_AT_MODE);
+		
+		// Mode switch flag disabled
+		sw_modeswitch_at_mode_on = SEG_DISABLE;	
+	}
+}
 void display_Dev_Info_dhcp(void)
 {
     DevConfig *dev_config = get_DevConfig_pointer();
@@ -591,3 +661,5 @@ void TimingDelay_Decrement(void)
     }
 }
 
+void rst_isr(void) __attribute__((section("ISR_FUNC at(0x000004)")));
+//const x1 __attribute__((at(0x000004))) = 0;

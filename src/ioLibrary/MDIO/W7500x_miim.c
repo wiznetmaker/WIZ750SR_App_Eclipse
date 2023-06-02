@@ -24,7 +24,7 @@
 
 #define __DEF_DBG_LEVEL1__
 
-//extern void delay(__IO uint32_t nCount);
+extern void delay(__IO uint32_t nCount);
 
 // Default MDC/MDIO Pin settings for W7500P
 // It can be changed by W7500x_MDC / W7500x_MDIO defines
@@ -34,14 +34,6 @@ static uint16_t MDC  = GPIO_Pin_14;
 uint32_t PHY_ADDR_IP101G; //(phy_id())
 uint32_t PHY_ADDR;// PHY_ADDR_IP101G
 
-void _delay(uint32_t nCount)
-{
-	uint32_t i=0;
-	while(i < (1000*nCount))
-	{
-		i++;
-	}
-}
 uint32_t link(void)
 {
     uint32_t phy_status = mdio_read(GPIOB, PHYREG_STATUS);  
@@ -98,9 +90,9 @@ void output_MDIO(GPIO_TypeDef* GPIOx, uint32_t val, uint32_t n)
         else
             GPIO_ResetBits(GPIOx, MDIO);
 
-        _delay(1);
+        delay(1);
         GPIO_SetBits(GPIOx, MDC); 
-        _delay(1);
+        delay(1);
         GPIO_ResetBits(GPIOx, MDC);
     }
 }
@@ -112,9 +104,9 @@ uint32_t input_MDIO(GPIO_TypeDef* GPIOx)
     {
         val <<=1;
         GPIO_SetBits(GPIOx, MDC); 
-        _delay(1);
+        delay(1);
         GPIO_ResetBits(GPIOx, MDC);
-        _delay(1);
+        delay(1);
         val |= GPIO_ReadInputDataBit(GPIOx, MDIO);
     }
     return (val);
@@ -125,11 +117,11 @@ void turnaround_MDIO(GPIO_TypeDef* GPIOx)
 
     GPIOx->OUTENCLR = MDIO ;
 
-    _delay(1);
+    delay(1);
     GPIO_SetBits(GPIOx, MDC); 
-    _delay(1);
+    delay(1);
     GPIO_ResetBits(GPIOx, MDC);
-    _delay(1);
+    delay(1);
 }
 
 void idle_MDIO(GPIO_TypeDef* GPIOx)
@@ -138,9 +130,9 @@ void idle_MDIO(GPIO_TypeDef* GPIOx)
     GPIOx->OUTENSET = MDIO ;
 
     GPIO_SetBits(GPIOx,MDC); 
-    _delay(1);
+    delay(1);
     GPIO_ResetBits(GPIOx, MDC);
-    _delay(1);
+    delay(1);
 }
 
 uint32_t mdio_read(GPIO_TypeDef* GPIOx, uint32_t PhyRegAddr)
