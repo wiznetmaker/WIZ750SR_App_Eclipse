@@ -283,6 +283,14 @@ void PWM7_Handler(void)
 {}
 
 /**
+  * @brief  This function handles RTC Handler.
+  * @param  None
+  * @retval None
+  */
+void RTC_Handler(void)
+{}
+
+/**
   * @brief  This function handles ADC Handler.
   * @param  None
   * @retval None

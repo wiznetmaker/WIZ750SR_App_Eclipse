@@ -24,9 +24,9 @@ extern "C"
   extern void
   Reset_Handler (void);
   extern void
-  NMI_Handler (void);
+  Remap_NMI_Handler (void);
   extern void
-  HardFault_Handler (void);
+  Remap_HardFault_Handler (void);
 
 #if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__)
   extern void
@@ -40,12 +40,12 @@ extern "C"
 #endif
 
   extern void
-  SVC_Handler (void);
+  Remap_SVC_Handler (void);
 
   extern void
-  PendSV_Handler (void);
+  Remap_PendSV_Handler (void);
   extern void
-  SysTick_Handler (void);
+  Remap_SysTick_Handler (void);
 
   // Exception Stack Frame of the Cortex-M3 or Cortex-M4 processor.
   typedef struct
